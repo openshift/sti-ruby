@@ -1,4 +1,4 @@
-name: Fedora-tests@TF
+name: RHEL7-tests@TF
 
 on:
   issue_comment:
@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     # This job only runs for '[test]' pull request comments by owner, member
-    name: Schedule test on Testing Farm service for Fedora
+    name: Schedule test on Testing Farm service for RHEL7
     runs-on: ubuntu-20.04
     if: |
       github.event.issue.pull_request
@@ -42,7 +42,8 @@ jobs:
           {
             "sha": "${{steps.sha.outputs.SHA}}",
             "state": "pending",
-            "context": "Testing Farm - Fedora"
+            "context": "Testing Farm - RHEL7",
+            "target_url": "http://artifacts.dev.testing-farm.io/${{ steps.sched_test.outputs.req_id }}/pipeline.log"
           }
           EOF
           echo "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/${{steps.sha.outputs.SHA}}"
@@ -57,19 +58,20 @@ jobs:
           apt update && apt -y install curl jq
           cat << EOF > request.json
           {
-            "api_key": "${{ secrets.TF_PUBLIC_API_KEY }}",
+            "api_key": "${{ secrets.TF_INTERNAL_API_KEY }}",
             "test": {"fmf": {
-              "url": "https://github.com/sclorg/sclorg-testing-farm",
-              "ref": "main"
+              "url": "https://gitlab.cee.redhat.com/platform-eng-core-services/sclorg-tmt-plans",
+              "ref": "main",
+              "name": "rhel7"
             }},
             "environments": [{
               "arch": "x86_64",
-              "os": {"compose": "CentOS-7"},
+              "os": {"compose": "RHEL-7.9-Released"},
               "variables": {
                 "REPO_URL": "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY",
                 "REPO_NAME": "$GITHUB_REPOSITORY",
                 "PR_NUMBER": "${{ steps.pr_nr.outputs.PR_NR }}",
-                "OS": "fedora",
+                "OS": "rhel7",
                 "TEST_NAME": "test"
               }
             }]
@@ -87,9 +89,9 @@ jobs:
 #        with:
 #          issue-number: ${{ steps.pr_nr.outputs.PR_NR }}
 #          body: |
-#            Testing Farm - Fedora [request](${{ secrets.TF_ENDPOINT }}/requests/${{ steps.sched_test.outputs.REQ_ID }})
-#            for Fedora test was created. Once finished, results should be available [here](http://artifacts.dev.testing-farm.io/${{ steps.sched_test.outputs.req_id }}/)
-#            [Full pipeline log](http://artifacts.dev.testing-farm.io/${{ steps.sched_test.outputs.REQ_ID }}/pipeline.log)
+#            Testing Farm - RHEL7 [request](${{ secrets.TF_ENDPOINT }}/requests/${{ steps.sched_test.outputs.req_id }})
+#            for RHEL7 test was created. Once finished, results should be available [here](http://artifacts.dev.testing-farm.io/${{ steps.sched_test.outputs.req_id }}/)
+#            [Full pipeline log](http://artifacts.dev.testing-farm.io/${{ steps.sched_test.outputs.req_id }}/pipeline.log)
 
   running:
     needs: build
@@ -114,12 +116,12 @@ jobs:
           {
             "sha": "${{needs.build.outputs.SHA}}",
             "state": "pending",
-            "context": "Testing Farm - Fedora",
+            "context": "Testing Farm - RHEL7",
             "description": "Build started",
             "target_url": "http://artifacts.dev.testing-farm.io/${{ needs.build.outputs.REQ_ID }}/"
           }
           EOF
-          curl -X POST -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN}}" -H "Accept: application/vnd.github.v3+json" \
+          curl -X POST -H "Authorization: Bearer ${{secrets.GITHUB_TOKEN}}" -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/${{needs.build.outputs.SHA}} \
             --data @running.json
 
@@ -128,12 +130,10 @@ jobs:
         run: |
           CMD=${{ secrets.TF_ENDPOINT }}/requests/${{needs.build.outputs.REQ_ID}}
           curl $CMD > job.json
-          cat job.json
           state=$(jq -r .state job.json)
           while [ "$state" == "running" ] || [ "$state" == "new" ] || [ "$state" == "pending" ] || [ "$state" == "queued" ]; do
             sleep 30
             curl $CMD > job.json
-            cat job.json
             state=$(jq -r .state job.json)
           done
 
@@ -178,7 +178,7 @@ jobs:
           {
             "sha": "${{needs.running.outputs.SHA}}",
             "state": "${{steps.final_state.outputs.FINAL_STATE}}",
-            "context": "Testing Farm - Fedora",
+            "context": "Testing Farm - RHEL7",
             "description": "Build finished${{steps.final_state.outputs.INFRA_STATE}}",
             "target_url": "http://artifacts.dev.testing-farm.io/${{ needs.running.outputs.REQ_ID }}/"
           }
